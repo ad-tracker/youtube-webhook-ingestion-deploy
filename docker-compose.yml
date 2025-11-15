@@ -1,0 +1,113 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:17-alpine
+    container_name: youtube-webhook-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-youtube_webhooks}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - youtube-webhook-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-youtube_webhooks}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Run database migrations
+  migrate:
+    image: ghcr.io/ad-tracker/youtube-webhook-ingestion-go:${IMAGE_TAG:-latest}
+    container_name: youtube-webhook-migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-youtube_webhooks}?sslmode=disable
+    command: ["-direction", "up"]
+    networks:
+      - youtube-webhook-network
+    restart: "no"
+
+  # YouTube Webhook Ingestion Service
+  webhook-service:
+    image: ghcr.io/ad-tracker/youtube-webhook-ingestion-go:${IMAGE_TAG:-latest}
+    container_name: youtube-webhook-service
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-youtube_webhooks}?sslmode=disable
+      PORT: "8080"
+      WEBHOOK_PATH: ${WEBHOOK_PATH:-/webhook}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
+      API_KEYS: ${API_KEYS:?API_KEYS must be set}
+    networks:
+      - youtube-webhook-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      # For Swag auto-discovery (if using auto-proxy mode)
+      - "swag.enable=true"
+      - "swag.http.routers.youtube-webhook.rule=Host(`${DOMAIN}`)"
+      - "swag.http.routers.youtube-webhook.entrypoints=websecure"
+      - "swag.http.services.youtube-webhook.loadbalancer.server.port=8080"
+
+  # Swag Reverse Proxy with SSL/TLS
+  swag:
+    image: lscr.io/linuxserver/swag:latest
+    container_name: youtube-webhook-swag
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-UTC}
+      - URL=${DOMAIN:?DOMAIN must be set}
+      - VALIDATION=${VALIDATION:-http}
+      - SUBDOMAINS=${SUBDOMAINS:-}
+      - CERTPROVIDER=${CERTPROVIDER:-}
+      - DNSPLUGIN=${DNSPLUGIN:-}
+      - PROPAGATION=${PROPAGATION:-}
+      - EMAIL=${EMAIL:-}
+      - ONLY_SUBDOMAINS=${ONLY_SUBDOMAINS:-false}
+      - EXTRA_DOMAINS=${EXTRA_DOMAINS:-}
+      - STAGING=${STAGING:-false}
+    volumes:
+      - swag_config:/config
+      - ./swag/nginx/site-confs:/config/nginx/site-confs:ro
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    networks:
+      - youtube-webhook-network
+    depends_on:
+      webhook-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+    name: youtube-webhook-postgres-data
+  swag_config:
+    name: youtube-webhook-swag-config
+
+networks:
+  youtube-webhook-network:
+    name: youtube-webhook-network
+    driver: bridge
