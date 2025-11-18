@@ -63,6 +63,24 @@ services:
       - "swag.http.routers.youtube-webhook.entrypoints=websecure"
       - "swag.http.services.youtube-webhook.loadbalancer.server.port=8080"
 
+  # Subscription Renewal Service
+  renewal-service:
+    image: ghcr.io/ad-tracker/youtube-webhook-ingestion-go:${IMAGE_TAG:-latest}
+    container_name: youtube-webhook-renewal
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-youtube_webhooks}?sslmode=disable
+      RENEWAL_INTERVAL: ${RENEWAL_INTERVAL:-6h}
+      BATCH_SIZE: ${BATCH_SIZE:-100}
+    command: ["/app/renewer"]
+    networks:
+      - youtube-webhook-network
+
   # Swag Reverse Proxy with SSL/TLS
   swag:
     image: lscr.io/linuxserver/swag:latest
