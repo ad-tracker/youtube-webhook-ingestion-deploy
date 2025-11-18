@@ -4,7 +4,8 @@ Production-ready Docker Compose deployment for the [YouTube Webhook Ingestion Se
 
 ## Features
 
-- **Complete Stack**: PostgreSQL database, webhook service, renewal service, and Swag reverse proxy
+- **Complete Stack**: PostgreSQL database, webhook service, renewal service, admin UI, and Swag reverse proxy
+- **Admin UI**: Web-based interface for managing subscriptions and monitoring webhooks
 - **Automatic SSL/TLS**: Let's Encrypt certificates with auto-renewal
 - **Auto-Renewal**: Subscriptions are automatically renewed before expiration
 - **Security**: Rate limiting, secure headers, and API key authentication
@@ -22,14 +23,20 @@ Swag (Port 80/443)
    ├─ SSL/TLS Termination
    ├─ Rate Limiting
    └─ Reverse Proxy
-       |
-       v
-YouTube Webhook Service (Port 8080)
-   ├─ /webhook - YouTube notifications
-   ├─ /api/v1/subscriptions - Subscription management
-   └─ /health - Health check
-       |
-       v
+       ├─ yt.justinnewman.tech
+       │  └─> YouTube Webhook Service (Port 8080)
+       │      ├─ /webhook - YouTube notifications
+       │      ├─ /api/v1/subscriptions - Subscription management
+       │      └─ /health - Health check
+       │
+       └─ admin.justinnewman.tech
+          └─> Admin UI (Port 80)
+              └─ Web interface for managing subscriptions
+                  |
+                  v
+          YouTube Webhook Service API
+                  |
+                  v
 PostgreSQL Database  <───────────────┐
    └─ Persistent storage              │
                                       │
@@ -102,10 +109,21 @@ nano .env       # or use your preferred editor
 
 ### 3. Configure DNS
 
-Point your domain to your server's IP address:
+Point your domain(s) to your server's IP address:
 
 ```
-A Record: webhooks.example.com -> YOUR_SERVER_IP
+A Record: yt.justinnewman.tech -> YOUR_SERVER_IP
+A Record: admin.justinnewman.tech -> YOUR_SERVER_IP
+```
+
+**Note**: If using EXTRA_DOMAINS for admin.justinnewman.tech, make sure to add it in your `.env` file:
+```bash
+EXTRA_DOMAINS=admin.justinnewman.tech
+```
+
+Or if DOMAIN is set to justinnewman.tech, add to SUBDOMAINS:
+```bash
+SUBDOMAINS=yt,admin
 ```
 
 Wait for DNS propagation (can take a few minutes to hours).
@@ -131,16 +149,24 @@ Check that all services are running:
 docker compose ps
 ```
 
-Test the health endpoint:
+Test the webhook service health endpoint:
 
 ```bash
-curl https://webhooks.example.com/health
+curl https://yt.justinnewman.tech/health
 ```
 
 Expected response:
 ```json
 {"status":"healthy","database":"connected"}
 ```
+
+Access the admin UI in your browser:
+
+```
+https://admin.justinnewman.tech
+```
+
+The admin UI provides a web interface for managing subscriptions and monitoring webhook events.
 
 ## Configuration Reference
 

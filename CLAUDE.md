@@ -1,0 +1,1 @@
+- Always make sure to do changes on a branch and open a PR once complete. PRs should have all checks passing.
