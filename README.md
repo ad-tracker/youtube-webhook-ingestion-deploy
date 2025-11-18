@@ -4,8 +4,9 @@ Production-ready Docker Compose deployment for the [YouTube Webhook Ingestion Se
 
 ## Features
 
-- **Complete Stack**: PostgreSQL database, webhook service, and Swag reverse proxy
+- **Complete Stack**: PostgreSQL database, webhook service, renewal service, and Swag reverse proxy
 - **Automatic SSL/TLS**: Let's Encrypt certificates with auto-renewal
+- **Auto-Renewal**: Subscriptions are automatically renewed before expiration
 - **Security**: Rate limiting, secure headers, and API key authentication
 - **High Availability**: Health checks and automatic container restarts
 - **Easy Configuration**: Simple `.env` file for all settings
@@ -29,8 +30,12 @@ YouTube Webhook Service (Port 8080)
    └─ /health - Health check
        |
        v
-PostgreSQL Database
-   └─ Persistent storage
+PostgreSQL Database  <───────────────┐
+   └─ Persistent storage              │
+                                      │
+Subscription Renewal Service         │
+   └─ Auto-renews expiring subs ─────┘
+      (runs every 6 hours by default)
 ```
 
 ## Prerequisites
@@ -162,6 +167,13 @@ See [.env.example](.env.example) for a complete list of all configuration option
 | `HTTP_PORT` | `80` | HTTP port on host |
 | `HTTPS_PORT` | `443` | HTTPS port on host |
 
+#### Renewal Service Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RENEWAL_INTERVAL` | `6h` | How often to check for expiring subscriptions |
+| `BATCH_SIZE` | `100` | Max subscriptions to process per check |
+
 ## Usage
 
 ### Managing Services
@@ -211,9 +223,28 @@ curl -X POST https://webhooks.example.com/api/v1/subscriptions \
     "lease_seconds": 432000
   }'
 
-# List active subscriptions
-curl -X GET https://webhooks.example.com/api/v1/subscriptions \
+# Check subscription status for a channel
+curl -X GET "https://webhooks.example.com/api/v1/subscriptions?channel_id=UCuAXFkgsw1L7xaCfnd5JJOw" \
   -H "X-API-Key: your_api_key_here"
+```
+
+### Automatic Subscription Renewal
+
+The renewal service automatically renews subscriptions before they expire:
+
+- **Runs every 6 hours** by default (configurable via `RENEWAL_INTERVAL`)
+- **Renews subscriptions** that will expire within 24 hours
+- **Processes up to 100 subscriptions** per check (configurable via `BATCH_SIZE`)
+- **Logs all renewal attempts** with success/failure status
+
+You can monitor the renewal service logs:
+
+```bash
+# View renewal service logs
+docker compose logs -f renewal-service
+
+# Check renewal status
+docker compose ps renewal-service
 ```
 
 ### Database Access
