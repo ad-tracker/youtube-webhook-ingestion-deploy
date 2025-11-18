@@ -81,6 +81,23 @@ services:
     networks:
       - youtube-webhook-network
 
+  # Admin UI
+  admin-ui:
+    image: ghcr.io/ad-tracker/youtube-webhook-admin-ui:${ADMIN_UI_TAG:-latest}
+    container_name: youtube-webhook-admin-ui
+    restart: unless-stopped
+    depends_on:
+      webhook-service:
+        condition: service_healthy
+    networks:
+      - youtube-webhook-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
   # Swag Reverse Proxy with SSL/TLS
   swag:
     image: lscr.io/linuxserver/swag:latest
@@ -112,6 +129,8 @@ services:
       - youtube-webhook-network
     depends_on:
       webhook-service:
+        condition: service_healthy
+      admin-ui:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80"]
