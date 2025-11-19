@@ -2,6 +2,16 @@
 
 Production-ready Docker Compose deployment for the [YouTube Webhook Ingestion Service](https://github.com/ad-tracker/youtube-webhook-ingestion-go) with automatic SSL/TLS certificates via Swag reverse proxy.
 
+## What This Is
+
+This deployment stack provides a complete, production-ready solution for receiving real-time YouTube video notifications:
+
+- **For Content Platforms**: Track uploads from multiple YouTube channels in real-time
+- **For Analytics**: Build comprehensive video tracking and analytics systems
+- **For Automation**: Trigger workflows when videos are published or updated
+
+The system receives webhooks from YouTube's PubSubHubbub service, stores them in PostgreSQL with full audit trails, and provides both a REST API and web UI for management. Everything runs in Docker with automatic SSL certificates and requires minimal maintenance.
+
 ## Features
 
 - **Complete Stack**: PostgreSQL database, webhook service, renewal service, admin UI, and Swag reverse proxy
