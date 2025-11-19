@@ -17,22 +17,30 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 128M
 
-  # Redis for job queue (asynq)
-  redis:
-    image: redis:7-alpine
-    container_name: youtube-webhook-redis
+  # Valkey for job queue (asynq) - Redis-compatible
+  valkey:
+    image: valkey/valkey:9-alpine
+    container_name: youtube-webhook-valkey
     restart: unless-stopped
-    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    command: valkey-server --appendonly yes --maxmemory 64mb --maxmemory-policy allkeys-lru --save ""
     volumes:
-      - redis_data:/data
+      - valkey_data:/data
     networks:
       - youtube-webhook-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 80M
 
   # Run database migrations
   migrate:
@@ -56,19 +64,23 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
+      valkey:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-youtube_webhooks}?sslmode=disable
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      REDIS_URL: ${REDIS_URL:-redis://valkey:6379/0}
       PORT: "8080"
       WEBHOOK_PATH: ${WEBHOOK_PATH:-/webhook}
       WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
       API_KEYS: ${API_KEYS:?API_KEYS must be set}
     networks:
       - youtube-webhook-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 30s
@@ -99,6 +111,10 @@ services:
     command: ["renewer"]
     networks:
       - youtube-webhook-network
+    deploy:
+      resources:
+        limits:
+          memory: 64M
 
   # Video Enrichment Service
   enrichment-service:
@@ -108,22 +124,26 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
+      valkey:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-youtube_webhooks}?sslmode=disable
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      REDIS_URL: ${REDIS_URL:-redis://valkey:6379/0}
       YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:?YOUTUBE_API_KEY must be set}
       YOUTUBE_DAILY_QUOTA: ${YOUTUBE_DAILY_QUOTA:-10000}
       ENRICHMENT_BATCH_SIZE: ${ENRICHMENT_BATCH_SIZE:-50}
-      ENRICHMENT_WORKERS: ${ENRICHMENT_WORKERS:-2}
+      ENRICHMENT_WORKERS: ${ENRICHMENT_WORKERS:-1}
       QUOTA_THRESHOLD_PERCENT: ${QUOTA_THRESHOLD_PERCENT:-90}
       ENRICHMENT_ENABLED: ${ENRICHMENT_ENABLED:-true}
     command: ["enricher"]
     networks:
       - youtube-webhook-network
+    deploy:
+      resources:
+        limits:
+          memory: 96M
 
   # Admin UI
   admin-ui:
@@ -141,6 +161,10 @@ services:
       timeout: 3s
       retries: 3
       start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 32M
 
   # Swag Reverse Proxy with SSL/TLS
   swag:
@@ -185,8 +209,8 @@ services:
 volumes:
   postgres_data:
     name: youtube-webhook-postgres-data
-  redis_data:
-    name: youtube-webhook-redis-data
+  valkey_data:
+    name: youtube-webhook-valkey-data
   swag_config:
     name: youtube-webhook-swag-config
 
