@@ -18,6 +18,22 @@ services:
       timeout: 5s
       retries: 5
 
+  # Redis for job queue (asynq)
+  redis:
+    image: redis:7-alpine
+    container_name: youtube-webhook-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - youtube-webhook-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   # Run database migrations
   migrate:
     image: ghcr.io/ad-tracker/youtube-webhook-ingestion-go:${IMAGE_TAG:-latest}
@@ -40,10 +56,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       migrate:
         condition: service_completed_successfully
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-youtube_webhooks}?sslmode=disable
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       PORT: "8080"
       WEBHOOK_PATH: ${WEBHOOK_PATH:-/webhook}
       WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
@@ -78,6 +97,31 @@ services:
       RENEWAL_INTERVAL: ${RENEWAL_INTERVAL:-6h}
       BATCH_SIZE: ${BATCH_SIZE:-100}
     command: ["renewer"]
+    networks:
+      - youtube-webhook-network
+
+  # Video Enrichment Service
+  enrichment-service:
+    image: ghcr.io/ad-tracker/youtube-webhook-ingestion-go:${IMAGE_TAG:-latest}
+    container_name: youtube-webhook-enricher
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-youtube_webhooks}?sslmode=disable
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:?YOUTUBE_API_KEY must be set}
+      YOUTUBE_DAILY_QUOTA: ${YOUTUBE_DAILY_QUOTA:-10000}
+      ENRICHMENT_BATCH_SIZE: ${ENRICHMENT_BATCH_SIZE:-50}
+      ENRICHMENT_WORKERS: ${ENRICHMENT_WORKERS:-2}
+      QUOTA_THRESHOLD_PERCENT: ${QUOTA_THRESHOLD_PERCENT:-90}
+      ENRICHMENT_ENABLED: ${ENRICHMENT_ENABLED:-true}
+    command: ["enricher"]
     networks:
       - youtube-webhook-network
 
@@ -141,6 +185,8 @@ services:
 volumes:
   postgres_data:
     name: youtube-webhook-postgres-data
+  redis_data:
+    name: youtube-webhook-redis-data
   swag_config:
     name: youtube-webhook-swag-config
 
