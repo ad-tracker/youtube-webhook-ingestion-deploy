@@ -4,6 +4,8 @@ services:
     image: postgres:17-alpine
     container_name: youtube-webhook-db
     restart: unless-stopped
+    profiles:
+      - local-postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-youtube_webhooks}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -27,6 +29,8 @@ services:
     image: valkey/valkey:9-alpine
     container_name: youtube-webhook-valkey
     restart: unless-stopped
+    profiles:
+      - local-valkey
     command: valkey-server --appendonly yes --maxmemory 64mb --maxmemory-policy allkeys-lru --save ""
     volumes:
       - valkey_data:/data
@@ -49,8 +53,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        required: false
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-youtube_webhooks}?sslmode=disable
+      DATABASE_URL: ${DATABASE_URL:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-youtube_webhooks}?sslmode=disable}
     command: ["-direction", "up"]
     networks:
       - youtube-webhook-network
@@ -64,12 +69,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        required: false
       valkey:
         condition: service_healthy
+        required: false
       migrate:
         condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-youtube_webhooks}?sslmode=disable
+      DATABASE_URL: ${DATABASE_URL:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-youtube_webhooks}?sslmode=disable}
       REDIS_URL: ${REDIS_URL:-valkey:6379}
       PORT: "8080"
       WEBHOOK_PATH: ${WEBHOOK_PATH:-/webhook}
@@ -103,10 +110,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        required: false
       migrate:
         condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-youtube_webhooks}?sslmode=disable
+      DATABASE_URL: ${DATABASE_URL:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-youtube_webhooks}?sslmode=disable}
       RENEWAL_INTERVAL: ${RENEWAL_INTERVAL:-6h}
       BATCH_SIZE: ${BATCH_SIZE:-100}
     command: ["renewer"]
@@ -125,12 +133,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        required: false
       valkey:
         condition: service_healthy
+        required: false
       migrate:
         condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-youtube_webhooks}?sslmode=disable
+      DATABASE_URL: ${DATABASE_URL:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-youtube_webhooks}?sslmode=disable}
       REDIS_URL: ${REDIS_URL:-valkey:6379}
       YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:?YOUTUBE_API_KEY must be set}
       YOUTUBE_DAILY_QUOTA: ${YOUTUBE_DAILY_QUOTA:-10000}
@@ -208,6 +218,7 @@ services:
       retries: 3
 
 volumes:
+  # These volumes are only used when local-postgres and local-valkey profiles are active
   postgres_data:
     name: youtube-webhook-postgres-data
   valkey_data:

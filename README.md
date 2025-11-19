@@ -144,16 +144,66 @@ Wait for DNS propagation (can take a few minutes to hours).
 
 ### 4. Deploy the Stack
 
+This deployment supports both local and remote database instances. Choose the deployment mode that fits your needs:
+
+#### Option A: Deploy with Local Databases (Default)
+
+Use local PostgreSQL and Valkey containers managed by Docker Compose:
+
 ```bash
 # Pull the latest images
 docker compose pull
 
-# Start the services
+# Start all services including local databases
+docker compose --profile local-postgres --profile local-valkey up -d
+
+# Check the logs
+docker compose logs -f
+```
+
+#### Option B: Deploy with Remote Databases
+
+Use external PostgreSQL and/or Redis/Valkey instances:
+
+1. **Configure remote connection URLs in `.env`:**
+
+```bash
+# For remote PostgreSQL, uncomment and set:
+DATABASE_URL=postgres://user:password@your-db.example.com:5432/youtube_webhooks?sslmode=require
+
+# For remote Redis/Valkey, set:
+REDIS_URL=redis://your-redis.example.com:6379/0
+```
+
+2. **Deploy without local database containers:**
+
+```bash
+# Pull the latest images
+docker compose pull
+
+# Start services (without local databases)
 docker compose up -d
 
 # Check the logs
 docker compose logs -f
 ```
+
+#### Option C: Mix Local and Remote Databases
+
+You can independently choose which databases to run locally:
+
+```bash
+# Use local PostgreSQL only (remote Redis/Valkey)
+docker compose --profile local-postgres up -d
+
+# Use local Valkey only (remote PostgreSQL)
+docker compose --profile local-valkey up -d
+```
+
+**Note:** When using remote databases, ensure:
+- Your remote database is accessible from your deployment server
+- Migrations will run automatically against your remote database on first startup
+- Connection credentials are properly secured in your `.env` file
 
 ### 5. Verify Deployment
 
