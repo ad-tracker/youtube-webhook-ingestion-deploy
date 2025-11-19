@@ -103,6 +103,10 @@ nano .env       # or use your preferred editor
 
 **Optional Configuration**:
 
+- **YOUTUBE_API_KEY**: YouTube Data API v3 key (required for video enrichment and URL-based channel addition)
+  - Get your API key from [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+  - Enable YouTube Data API v3 for your project
+  - If not set, enrichment service won't start and `/api/v1/channels/from-url` endpoint will not be available
 - **WEBHOOK_SECRET**: Set if you want to verify webhook signatures
 - **EMAIL**: Email for Let's Encrypt notifications
 - **IMAGE_TAG**: Specific version to deploy (default: `latest`)
