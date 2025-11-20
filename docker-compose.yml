@@ -80,6 +80,7 @@ services:
       REDIS_URL: ${REDIS_URL:-valkey:6379}
       PORT: "8080"
       WEBHOOK_PATH: ${WEBHOOK_PATH:-/webhook}
+      WEBHOOK_URL: ${WEBHOOK_URL:?WEBHOOK_URL must be set}
       WEBHOOK_SECRET: ${WEBHOOK_SECRET:?WEBHOOK_SECRET must be set}
       API_KEYS: ${API_KEYS:?API_KEYS must be set}
       YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
@@ -115,6 +116,7 @@ services:
         condition: service_completed_successfully
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-youtube_webhooks}?sslmode=disable}
+      WEBHOOK_URL: ${WEBHOOK_URL:?WEBHOOK_URL must be set}
       WEBHOOK_SECRET: ${WEBHOOK_SECRET:?WEBHOOK_SECRET must be set}
       RENEWAL_INTERVAL: ${RENEWAL_INTERVAL:-6h}
       BATCH_SIZE: ${BATCH_SIZE:-100}
