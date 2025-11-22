@@ -151,6 +151,13 @@ services:
       ENRICHMENT_WORKERS: ${ENRICHMENT_WORKERS:-1}
       QUOTA_THRESHOLD_PERCENT: ${QUOTA_THRESHOLD_PERCENT:-90}
       ENRICHMENT_ENABLED: ${ENRICHMENT_ENABLED:-true}
+      # Sponsor Detection (LLM-based sponsor identification)
+      SPONSOR_DETECTION_ENABLED: ${SPONSOR_DETECTION_ENABLED:-false}
+      SPONSOR_DETECTION_WORKERS: ${SPONSOR_DETECTION_WORKERS:-1}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-}
+      OLLAMA_TIMEOUT: ${OLLAMA_TIMEOUT:-60}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
     command: ["enricher"]
     networks:
       - youtube-webhook-network
